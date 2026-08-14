@@ -1,6 +1,6 @@
 {
   "name": "dsh-vision-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness 视觉能力全家桶：vision_understand 工具（OpenAI 兼容视觉 API，默认免费智谱 GLM-4V-Flash）+ 粘贴/拖拽/按钮三入口识图",
   "type": "module",
   "main": "./src/index.mjs",
@@ -28,9 +28,6 @@
     "视觉"
   ],
   "license": "MIT",
-  "dependencies": {
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6"
-  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

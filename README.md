@@ -60,6 +60,8 @@ VISION_MODEL=glm-4v-flash
 
 ## 技术说明
 
+> ⚠️ **依赖约定**：`@deepseek-ai/dsh-tools` 是 DSH 宿主运行时自带（bundle 机制提供），本插件**不声明为 dependencies**。若声明，`dsh plugin add` 触发 npm install 会在 profile 里装出第二份 dsh-tools，与宿主全局那份形成**模块双实例**，导致工具执行层 `scheduler.prepare` 崩溃（`Cannot read properties of undefined (reading 'prepare')`）。安装后建议确认 profile 的 `node_modules/@deepseek-ai/dsh-tools` 是符号链接或单实例。
+
 - 宿主半区：`src/index.mjs`（Cordis 插件，`inject: ['tools', 'webServer']`）
   - `vision_understand` 工具经 `defineTool` 注册（`@deepseek-ai/dsh-tools`）
   - `POST /api/vision-paste` 路由落盘粘贴图片
