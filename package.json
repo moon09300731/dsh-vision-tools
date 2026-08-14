@@ -41,5 +41,13 @@
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+github:moon09300731/dsh-vision-tools.git"
+  },
+  "homepage": "https://github.com/moon09300731/dsh-vision-tools",
+  "bugs": {
+    "url": "https://github.com/moon09300731/dsh-vision-tools/issues"
   }
 }
