@@ -1,0 +1,6 @@
+# dsh-vision-tools bundle patch: one row inserts the dual-face plugin
+# (host half: vision_understand tool + /api/vision-paste route;
+# browser half: paste/drag/button entry via dsh.client declaration).
+- insert:
+    - id: dsh-vision-tools
+      name: 'dsh-vision-tools'
