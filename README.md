@@ -5,7 +5,7 @@ DeepSeek Harness（DSH）视觉能力全家桶 —— 让 DeepSeek 纯文本模�
 - **vision_understand 工具**：调用 OpenAI 兼容视觉大模型 API 理解本地图片（描述画面、识别文字、回答问题），注册为全局工具，所有会话可用。
 - **三入口识图**：`Cmd/Ctrl+V` 粘贴截图、拖图到按钮、点按钮选文件 → 图片自动落盘到 `$DSH_HOME/pasted-images/` → 输入框填入 `请识别这张图片：<路径>` → 发送后模型自动调用识图工具。
 
-默认使用**智谱 GLM-4V-Flash（免费）**，支持 4 家 provider 切换。
+默认使用**智谱 GLM-4.6V-Flash（免费）**，支持 4 家 provider 切换。
 
 ## 安装
 
@@ -32,12 +32,12 @@ VISION_API_KEY=你的APIKey
 
 ```env
 VISION_BASE_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
-VISION_MODEL=glm-4v-flash
+VISION_MODEL=glm-4.6v-flash
 ```
 
 | provider | 默认模型 | 说明 |
 |---|---|---|
-| `zhipu` | `glm-4v-flash` | 智谱，免费 |
+| `zhipu` | `glm-4.6v-flash` | 智谱，免费（128K 上下文，支持思考模式） |
 | `dashscope` | `qwen-vl-plus` | 阿里百炼 |
 | `siliconflow` | `Qwen/Qwen2.5-VL-7B-Instruct` | 硅基流动 |
 | `openai` | `gpt-4o-mini` | OpenAI |
