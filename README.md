@@ -5,7 +5,7 @@ DeepSeek Harness（DSH）视觉能力全家桶 —— 让 DeepSeek 纯文本模�
 - **vision_understand 工具**：调用 OpenAI 兼容视觉大模型 API 理解本地图片（描述画面、识别文字、回答问题），注册为全局工具，所有会话可用。
 - **三入口识图**：`Cmd/Ctrl+V` 粘贴截图、拖图到按钮、点按钮选文件 → 图片自动落盘到 `$DSH_HOME/pasted-images/` → 输入框填入 `请识别这张图片：<路径>` → 发送后模型自动调用识图工具。
 
-默认使用**智谱 GLM-4.6V-Flash（免费）**，支持 4 家 provider 切换。
+默认使用**智谱 GLM-4.6V-Flash（免费）**，支持 4 家 provider 切换。被限流时**自动降级到 GLM-4V（glm-4v-flash）**重试，免费模型高峰期也不容易失败。
 
 ## 安装
 
@@ -34,6 +34,16 @@ VISION_API_KEY=你的APIKey
 VISION_BASE_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
 VISION_MODEL=glm-4.6v-flash
 ```
+
+限流自动降级（可选）：
+
+```env
+VISION_FALLBACK_MODEL=glm-4v-flash
+```
+
+- 主模型 `VISION_MODEL` 被限流（HTTP 429 / 负载过高 / 频率限制等）时，自动降级到 `VISION_FALLBACK_MODEL` 重试一次
+- 缺省降级模型 = provider 预设模型（`zhipu` → `glm-4v-flash`，即 v4 版本）；主模型与降级模型相同时不会重复请求
+- 仅限流类错误触发降级；密钥无效、参数错误等业务错误不降级，直接报错
 
 | provider | 默认模型 | 说明 |
 |---|---|---|

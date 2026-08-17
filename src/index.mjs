@@ -4,6 +4,9 @@
  * 在一个 bundle 插件里同时提供：
  *   1. vision_understand 工具：调用 OpenAI 兼容视觉大模型 API 理解本地图片，
  *      弥补 DeepSeek 无视觉能力的短板（配置见 README 的 vision.env 部分）。
+ *      主模型（VISION_MODEL）被限流（HTTP 429 / 负载过高 / 频率限制等）时
+ *      自动降级到 VISION_FALLBACK_MODEL（缺省取 provider 预设，zhipu 为
+ *      glm-4v-flash）重试一次，避免免费模型高峰期直接失败。
  *   2. POST /api/vision-paste 路由：浏览器端把粘贴/拖拽的图片落盘到
  *      $DSH_HOME/pasted-images/，返回路径供模型读取。
  *
@@ -73,9 +76,23 @@ async function readConfig() {
     key: cfg.VISION_API_KEY.trim(),
     endpoint: (cfg.VISION_BASE_URL || preset.base).trim(),
     model: (cfg.VISION_MODEL || preset.model).trim(),
+    // 限流降级模型：缺省取 provider 预设（zhipu 预设即 glm-4v-flash，v4 版本）
+    fallbackModel: (cfg.VISION_FALLBACK_MODEL || preset.model).trim(),
     provider,
     file: found,
   }
+}
+
+/**
+ * 判定响应是否为限流类错误（可降级重试）：
+ * - HTTP 429 Too Many Requests
+ * - 响应体含限流关键词（兼容智谱 1113「API 分组负载过高」、OpenAI rate limit、
+ *   百炼/硅基流动 quota 等错误码与文案）
+ */
+function isRateLimit(status, raw) {
+  if (status === 429) return true
+  const t = String(raw || '').toLowerCase()
+  return /rate\s*limit|too many requests|overload|负载|繁忙|稍后重试|quota|配额|限流|频率|频繁|429/.test(t)
 }
 
 function mimeFor(path) {
@@ -173,51 +190,74 @@ export default {
         const prompt = (typeof args.prompt === 'string' && args.prompt.trim())
           ? args.prompt.trim()
           : '请详细描述这张图片的内容，包括其中可见的文字。'
-        const payload = {
-          model: cfg.model,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: 'data:' + mimeFor(path) + ';base64,' + Buffer.from(bytes).toString('base64') } },
-            ],
-          }],
-          max_tokens: 1024,
+        // 限流自动降级：依次尝试主模型（VISION_MODEL）→ 降级模型（VISION_FALLBACK_MODEL），
+        // 仅限流类错误触发降级，业务错误（密钥无效、参数错误等）原样抛出，避免掩盖真实故障。
+        const models = [...new Set([cfg.model, cfg.fallbackModel])]
+        let lastRateLimit = null
+        for (let i = 0; i < models.length; i++) {
+          const model = models[i]
+          const payload = {
+            model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: 'data:' + mimeFor(path) + ';base64,' + Buffer.from(bytes).toString('base64') } },
+              ],
+            }],
+            max_tokens: 1024,
+          }
+          let res
+          try {
+            res = await fetch(cfg.endpoint, {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + cfg.key,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+              signal: exec.signal,
+            })
+          } catch (e) {
+            throw new Error('请求视觉 API 失败（' + cfg.provider + '）：' + String((e && e.message) || e))
+          }
+          const raw = await res.text()
+          let rateLimited = !res.ok && isRateLimit(res.status, raw)
+          if (!res.ok && !rateLimited) {
+            throw new Error('视觉 API 报错 HTTP ' + res.status + '（' + cfg.provider + '）：' + raw.slice(0, 1200))
+          }
+          let data = null
+          if (res.ok) {
+            try {
+              data = JSON.parse(raw)
+            } catch (e) {
+              throw new Error('视觉 API 返回了无法解析的内容：' + raw.slice(0, 500))
+            }
+            if (data && data.error) {
+              if (!isRateLimit(res.status, JSON.stringify(data.error))) {
+                throw new Error('视觉 API 报错：' + JSON.stringify(data.error).slice(0, 800))
+              }
+              // HTTP 200 但响应体报限流（个别网关行为），同样触发降级
+              rateLimited = true
+            }
+          }
+          if (rateLimited) {
+            lastRateLimit = { status: res.status, body: raw.slice(0, 400) }
+            if (i < models.length - 1) {
+              console.log('[dsh-vision-tools] ' + model + ' 被限流（HTTP ' + res.status + '），自动降级到 ' + models[i + 1] + ' 重试')
+              continue
+            }
+            throw new Error('视觉 API 限流（' + cfg.provider + '）：所有模型均被限流（HTTP ' + res.status + '）：' + raw.slice(0, 400))
+          }
+          const choice = data && data.choices && data.choices[0]
+          let text = choice && choice.message && choice.message.content
+          if (Array.isArray(text)) text = text.map((p) => (p && typeof p.text === 'string') ? p.text : '').join('')
+          if (typeof text !== 'string' || !text.trim()) {
+            throw new Error('视觉 API 未返回有效内容：' + JSON.stringify(data).slice(0, 500))
+          }
+          return { text: text.trim() }
         }
-        let res
-        try {
-          res = await fetch(cfg.endpoint, {
-            method: 'POST',
-            headers: {
-              Authorization: 'Bearer ' + cfg.key,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-            signal: exec.signal,
-          })
-        } catch (e) {
-          throw new Error('请求视觉 API 失败（' + cfg.provider + '）：' + String((e && e.message) || e))
-        }
-        const raw = await res.text()
-        if (!res.ok) {
-          throw new Error('视觉 API 报错 HTTP ' + res.status + '（' + cfg.provider + '）：' + raw.slice(0, 1200))
-        }
-        let data
-        try {
-          data = JSON.parse(raw)
-        } catch (e) {
-          throw new Error('视觉 API 返回了无法解析的内容：' + raw.slice(0, 500))
-        }
-        if (data && data.error) {
-          throw new Error('视觉 API 报错：' + JSON.stringify(data.error).slice(0, 800))
-        }
-        const choice = data && data.choices && data.choices[0]
-        let text = choice && choice.message && choice.message.content
-        if (Array.isArray(text)) text = text.map((p) => (p && typeof p.text === 'string') ? p.text : '').join('')
-        if (typeof text !== 'string' || !text.trim()) {
-          throw new Error('视觉 API 未返回有效内容：' + JSON.stringify(data).slice(0, 500))
-        }
-        return { text: text.trim() }
+        throw new Error('视觉 API 限流（' + cfg.provider + '）：' + JSON.stringify(lastRateLimit))
       },
     })
     ctx.effect(() => ctx.tools.register(tool))

@@ -1,7 +1,7 @@
 {
   "name": "dsh-vision-tools",
-  "version": "0.1.1",
-  "description": "DeepSeek Harness 视觉能力全家桶：vision_understand 工具（OpenAI 兼容视觉 API，默认免费智谱 GLM-4V-Flash）+ 粘贴/拖拽/按钮三入口识图",
+  "version": "0.1.2",
+  "description": "DeepSeek Harness 视觉能力全家桶：vision_understand 工具（OpenAI 兼容视觉 API，默认免费智谱 GLM-4.6V-Flash，限流自动降级 GLM-4V）+ 粘贴/拖拽/按钮三入口识图",
   "type": "module",
   "main": "./src/index.mjs",
   "exports": {
